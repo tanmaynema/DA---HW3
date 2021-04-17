@@ -1,2 +1,2 @@
-# DA---HW3
-R programming
+# DA-HW3
+Homework Assignment on R programming
