@@ -1,0 +1,265 @@
+---
+title: "Data Analytics HW3_Part A"
+author: "Tanmay Nema"
+date: "10/27/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# PART A: Exploring Base R Features
+
+## Question 1: Initial data processing and exploratory data analysis
+
+1.a: Read in the raw CSV file, and create a data frame called raw_data that contains only the date (dt or dt_iso), city_id, and five other variables (temp, humidity, wind_speed, rain_1h, and weather_id). As needed, change the variable classes, and specify factors, to make sure the rest of your analysis will work correctly!
+
+Ans: The raw data is imported into the R program using the read.table function while retaining the column headings. There were 253915 records and 28 attributes. The data.frame function was used to create the required data frame. New column names are also assigned at the beginning to avoid any confusion at later stages.
+```{r}
+# 1.a
+readfile <- read.table("raw_data.csv",TRUE,",")
+raw_data <- data.frame(readfile$dt_iso,readfile$city_id,readfile$temp,readfile$humidity,readfile$wind_speed,readfile$rain_1h,readfile$weather_id)
+colnames(raw_data)<-c("Date","City_ID","Temperature","Humidity","Wind_Speed","Rain_1hr","Weather")
+raw_data$Date <- as.POSIXct(raw_data$Date, tz="UTC")
+raw_data$City_ID <- as.factor(raw_data$City_ID)
+raw_data$Weather <- as.factor(raw_data$Weather)
+head(raw_data)
+```
+1.b: How many observations are there overall in the raw data? Also, make a ‘table’ to show how many raw observations are there for each of the city_id’s specified.
+
+Ans: The str() function provides information about the structure of the data frames. We have 253915 number of records and have selected 7 key attributes to focus on. The frequency statistic for the number of records for each city is also shown below using the table() function in Base R.
+```{r}
+# 1.b
+str(raw_data) #Gives number of records
+table(raw_data$City_ID)
+```
+
+1.c: Perform a high-level EDA of the data frame created in 1a. As always, describe the dataset, and identify potential data problems from the EDA results (but do not fix/clean the data yet). Discuss which of the weather variables have the least or most NA (missing) values.
+
+Ans: Summary() function was used to perform high-level EDA of the data frame. The EDA shows that the data is not refined and highly skewed due to the presence of severe outliers. Various data types and categories are misclassified as well for. eg. City_Id and dt_iso etc. The extreme outlier can be seen in Temperature, wind speed and also rainfall attributes, which suggest interference in the sensor signal at the time of accumulation. We can see that many records of rainfall are missing.
+```{r}
+# 1.c
+summary(raw_data)
+```
+
+1:d Find the mean and standard deviation of temperature and wind speed using all of the raw data.
+
+Ans: I used the mean() and sd() function to calculate the respective quantities. These were used in an lapply() loop mechanism instead of calculating individually. Base R offers efficient methods of performing baisc mathematic operations.
+```{r}
+# 1.d
+qty <- list(raw_data$Temperature,raw_data$Wind_Speed)
+avg <- lapply(qty, mean)
+print("Mean")
+unlist(avg)
+sdv <- lapply(qty, sd)
+print("Standard Deviation")
+unlist(sdv)
+```
+
+1.e: Calculate again the means of the two variables but after ‘trimming’ 2% of data from each end. Describe the results and what they tell you about data cleaning needed.
+
+Ans: The trim parameter of the mean() function is used to exclude some proportion of the data from either ends. I used (trim = 0.02) to trim 2% of data from each end. The result of this trimming can be seen from the change in the mean values. The change in the average wind speed is more pronounced than compared to temperature.
+```{r}
+# 1.e
+qty <- list(raw_data$Temperature,raw_data$Wind_Speed)
+avg <- lapply(qty,mean, trim=0.02)
+unlist(avg)
+```
+
+1.f: Consider the following table that matches the ids and names of the cities:
+i) Create a dataframe named city_df that contains the information provided in the table above. Name the columns “Id” and “city_name” as shown.
+
+Ans: A new matrix is created consisting the details as provided - the city id and the city name.
+```{r}
+# 1.f(i)
+city_factors <- c(levels(raw_data$City_ID),1111111)
+cities <- c("London","Berlin","Paris","Oslo","Rome","Lisbon","Pittsburgh")
+city_df = data.frame("Id"=city_factors,"City_Name"=cities)
+city_df
+```
+ii) Join raw_data and city_df data frames to create a data frame called joined_data that has an additional column with the city name associated with each observation (column must be called “city_name”).
+
+Ans: The raw_data and the matrix created above were combined or merged together to generated the required data frame. Inner joint was performed based on the city_id column name.
+```{r}
+# 1.f(ii)
+city_df = data.frame("City_ID"=city_factors,"City_Name"=cities)
+joined_data<-merge(raw_data,city_df, by = "City_ID", all =TRUE)
+head(joined_data)
+```
+## Question 2: Data Manipulation and Turning data into information
+
+2.a: Modify the joined_data data frame by removing: (1) all duplicate records from the data frame, (2) any records where the temperature is equal to zero and (3) any records where the humidity is greater than 100. Name the resulting data frame removed_joined_data.
+
+Ans: I used logical operators and unique() to perform the data cleaning requirements. Removed_joined_data was thus created. A total of 20313 record were thus cleared, making the data frame for realistic.
+```{r}
+# 2.a
+joined_data <- unique(joined_data)
+removed_joined_data <- subset(joined_data, Temperature != 0 & Humidity <100)
+str(removed_joined_data)
+```
+
+2.b: What proportion of the observations in removed_joined_data (overall, not at city level) is the temperature below 0 degrees Celsius AND the wind speed is greater than 5?
+
+Ans: Subset of data was created from original data frame which included the required filters. The number of rows of this filtered subset was found using “nrow” and divided by nrow of original data frame to get the proportion value in percentage i.e. 0.245 %
+
+```{r}
+# 2.b
+cold_wildy <- subset(removed_joined_data, Temperature < 273.15 & Wind_Speed > 5)
+val <- nrow(cold_wildy)
+val2 <- nrow(removed_joined_data)
+proportion <- (val/val2)*100
+proportion
+```
+
+2.c: Make PivotTable-like summaries (for each city, and showing city names) for the following using removed_joined_data:
+i) Average temperature and wind speed
+ii) Standard deviation of the temperature and wind speed
+ii) Minimum and maximum temperature and wind speed iv) Frequency of ‘clear’ (weather ID=800) conditions
+
+Ans: Aggregate() function is used to generate pivot table-like summaries in Base R. In addition to that, basic statistic criterion such as mean, standard deviation, minimum, maximum were utilized. Min and Max were found separately and then merged togethe rin one table. Table() command was used to get the frequency distribution i.e. count of "Clear" weather condition.
+```{r}
+# 2.c(i)
+temp <- data.frame(Temperature=removed_joined_data$Temperature,Wind_Speed=removed_joined_data$Wind_Speed)
+temp2 <- list(City_Name = removed_joined_data$City_Name)
+avg_temp_wind <- aggregate(x=temp,by=temp2, FUN=mean)
+avg_temp_wind
+
+# 2.c(ii)
+sd_temp_wind <-aggregate(x=temp,by=temp2, FUN=sd,na.rm=TRUE)
+sd_temp_wind
+
+# 2.c(iii)
+max_temp_wind <- aggregate(x=temp,by=temp2, FUN = max)
+min_temp_wind <- aggregate(x=temp,by=temp2, FUN = min)
+min_max_temp_wind <- merge(max_temp_wind,min_temp_wind,by="City_Name")
+colnames(min_max_temp_wind)<-c("City_Name","Max_Temp","Max_Wind","Min_Temp","Min_Wind")
+min_max_temp_wind
+
+
+# 2.c(iv)
+temp4 <- subset(removed_joined_data,Weather=="800",na.rm=TRUE)
+count_clear <- data.frame(table(temp4$City_Name))
+colnames(count_clear)<-c("City_Names","Clear Weather Counts")
+count_clear
+```
+
+## Question 3 Data visualization in Base R:
+
+3.a: Assume you want to understand whether there are data gaps in the hourly records for each city (e.g., days/weeks/months with no records due to sensor failure). Make a new variable that tracks ‘time between consecutive records’ for removed_joined_data AND for each city create a table of the ‘time between’ to try to find whether any or all of the cities have gaps. Discuss whether they are generally day/week/month long type gaps.
+
+Ans: I used the attribute "dt_iso" to get information regarding the date and time of the recordings. In addition difftime() function was used to get the difference between two consecutive recording in hours. Each city subset was created to gather information regarding the data accumulation.
+
+```{r}
+#London
+london <- subset(removed_joined_data,City_Name == "London")
+london2 <- subset(joined_data,City_Name == "London")
+
+iter = c(1:nrow(london)-1)
+for (i in iter){
+  london$Time_Gap[i+1] <- as.numeric(difftime(london$Date[i+1],london$Date[i],tz="UTC",units="hours"))
+}
+london$Time_Gap <- as.factor(london$Time_Gap)
+op_london <- data.frame(table(london$Time_Gap))
+colnames(op_london) <- c("Time Difference (hrs)","Frequency")
+op_london
+```
+```{r}
+#Berlin
+berlin <- subset(removed_joined_data,City_Name == "Berlin")
+
+iter = c(1:nrow(berlin)-1)
+for (i in iter){
+  berlin$Time_Gap[i+1] <- as.numeric(difftime(berlin$Date[i+1],berlin$Date[i],tz="UTC",units="hours"))
+}
+
+berlin$Time_Gap <- as.factor(berlin$Time_Gap)
+op_berlin <- data.frame(table(berlin$Time_Gap))
+colnames(op_berlin) <- c("Time Difference (hrs)","Frequency")
+op_berlin
+```
+
+```{r}
+#Paris
+paris <- subset(removed_joined_data,City_Name == "Paris")
+
+iter = c(1:nrow(paris)-1)
+paris$Time_Gap <- 0
+for (i in iter){
+  paris$Time_Gap[i] <- (as.numeric(difftime(paris$Date[i+1],paris$Date[i],tz="UTC",units="hours")))
+}
+paris$Time_Gap <- as.factor(paris$Time_Gap)
+op_paris <- data.frame(table(paris$Time_Gap))
+colnames(op_paris) <- c("Time Difference (hrs)","Frequency")
+op_paris
+```
+
+```{r}
+#Oslo
+oslo <- subset(removed_joined_data,City_Name == "Oslo")
+
+iter = c(1:nrow(oslo)-1)
+for (i in iter){
+  oslo$Time_Gap[i+1] <- as.numeric(difftime(oslo$Date[i+1],oslo$Date[i],tz="UTC",units="hours"))
+}
+oslo$Time_Gap <- as.factor(oslo$Time_Gap)
+op_oslo <- data.frame(table(oslo$Time_Gap))
+colnames(op_oslo) <- c("Time Difference (hrs)","Frequency")
+op_oslo
+```
+
+```{r}
+#Rome
+rome <- subset(removed_joined_data,City_Name == "Rome")
+
+iter = c(1:nrow(rome)-1)
+for (i in iter){
+  rome$Time_Gap[i] <- as.numeric(difftime(rome$Date[i+1],rome$Date[i],tz="UTC",units="hours"))
+}
+rome$Time_Gap <- as.factor(rome$Time_Gap)
+op_rome <- data.frame(table(rome$Time_Gap))
+colnames(op_rome) <- c("Time Difference (hrs)","Frequency")
+op_rome
+```
+
+```{r}
+#Lisbon
+lisbon <- subset(removed_joined_data,City_Name == "Lisbon")
+
+iter = c(1:nrow(lisbon)-1)
+for (i in iter){
+  lisbon$Time_Gap[i] <- as.numeric(difftime(lisbon$Date[i+1],lisbon$Date[i],tz="UTC",units="hours"))
+}
+lisbon$Time_Gap <- as.factor(lisbon$Time_Gap)
+op_lisbon <- data.frame(table(lisbon$Time_Gap))
+colnames(op_lisbon) <- c("Time Difference (hrs)","Frequency")
+op_lisbon
+```
+3.b: For each of the following, create boxplots for the hourly data for London, one using joined_data and the other using removed_joined_data:
+(i) temperature (variable temp)
+(ii) hourly rainfall (rain_1h).
+
+Make sure the plots are properly formatted and labeled (don’t worry about color!). Discuss outliers identified by plots in terms of number of data points and how much the outliers differ.
+
+Ans: Time information was stored in hours for each record by using strptime() function. After storing the hours as factors, boxplot was created to get the distribution of the temperature as a function of hour of day. Only single boxplot was generated as per the new update on canvas.
+
+The temperature plot shows that the temperature is highest during the afternoon hours, which is very much intuitive. We can also see the outlier as the circular points.
+
+```{r}
+t <- strptime(london$Date, format= "%Y-%m-%d %H:%M:%S")
+t <- as.numeric(format(t, "%H"))
+london$Hours <- as.factor(t)
+boxplot(london$Temperature~london$Hours,data=london, main="Temperature vs Time of Day - Removed Joined",
+   xlab="Hours", ylab="Temperature (K)")
+```
+The rain plot shows that there exists severe skewness in the data. The plot is limited to 500 mm of rainfall to avoid extreme outliers from skewing the plot and resulting in very limited information. We can see that the majorly, rainfall is evenly distributed throughout the day.
+
+
+```{r}
+london3 <- subset(london2,Rain_1hr<500)
+t <- strptime(london3$Date, format= "%Y-%m-%d %H:%M:%S")
+t <- as.numeric(format(t, "%H"))
+london3$Hours <- as.factor(t)
+boxplot(london3$Rain_1hr~london3$Hours,data=london3, main="Rain_1hr vs Time of Day - Removed Joined",
+   xlab="Hours", ylab="Precipitation (mm)")
+```
